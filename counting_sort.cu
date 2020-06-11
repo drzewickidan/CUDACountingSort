@@ -74,7 +74,6 @@ int main(int argc, char **argv)
     /* Sort elements in input array using reference implementation. 
      * The result is placed in sorted_array_reference. */
     printf("\nSorting array on CPU\n");
-    gettimeofday(&start, NULL);
     
     int status;
     sorted_array_reference = (int *)malloc(num_elements * sizeof(int));
@@ -84,6 +83,7 @@ int main(int argc, char **argv)
     }
     memset(sorted_array_reference, 0, num_elements);
     
+    gettimeofday(&start, NULL);
     status = counting_sort_gold(input_array, sorted_array_reference, num_elements, range);
     gettimeofday(&stop, NULL);
     fprintf(stderr, "Gold Execution time = %fs\n", (float) (stop.tv_sec - start.tv_sec\
@@ -115,9 +115,7 @@ int main(int argc, char **argv)
     }
     memset(sorted_array_d, 0, num_elements);
 
-    gettimeofday(&start, NULL);
     compute_on_device(input_array, sorted_array_d, num_elements, range);
-    gettimeofday(&stop, NULL);
     fprintf(stderr, "GPU Execution time = %fs\n", (float) (stop.tv_sec - start.tv_sec\
                 + (stop.tv_usec - start.tv_usec)/(float)1000000));
 
@@ -159,12 +157,13 @@ void compute_on_device(int *input_array, int *sorted_array, int num_elements, in
     cudaMalloc((void **)&d_scan, (range + 1) * sizeof(int));
     cudaMemset(d_scan, 0, size);
 
+    gettimeofday(&start, NULL);
     dim3 threads(range + 1);
     dim3 grid(40, 1);
     histogram_kernel_fast<<<grid, threads, size>>>(d_input_array, d_histogram, num_elements, (range + 1));
-    cudaDeviceSynchronize();
     grid.x = 1;
     counting_sort_kernel<<<grid, threads, 2 * size>>>(d_input_array, d_sorted_array, d_histogram, d_scan, num_elements, range);
+    gettimeofday(&stop, NULL);
     cudaMemcpy(sorted_array, d_sorted_array, num_elements * sizeof(int), cudaMemcpyDeviceToHost);
 
     cudaFree(d_input_array);
