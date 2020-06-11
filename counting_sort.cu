@@ -149,10 +149,10 @@ void compute_on_device(int *input_array, int *sorted_array, int num_elements, in
     size = num_elements * sizeof(int);
     cudaMalloc((void **)&d_sorted_array, size);
 
-    int* d_hist;
+    int* d_histogram;
     size = (range + 1) * sizeof(int);
-    cudaMalloc((void **)&d_hist, size);
-    cudaMemset(d_hist, 0, size);
+    cudaMalloc((void **)&d_histogram, size);
+    cudaMemset(d_histogram, 0, size);
 
     int* d_scan;
     size = (range + 1) * sizeof(int);
@@ -160,12 +160,17 @@ void compute_on_device(int *input_array, int *sorted_array, int num_elements, in
     cudaMemset(d_scan, 0, size);
 
     dim3 threads(range + 1);
-    dim3 grid(1, 1);
-    hist_kernel<<<grid, threads, size>>>(d_input_array, num_elements, d_hist);
+    dim3 grid(40, 1);
+    histogram_kernel_fast<<<grid, threads, size>>>(d_input_array, d_histogram, num_elements, (range + 1));
     cudaDeviceSynchronize();
-    counting_sort_kernel<<<grid, threads, 2 * size>>>(d_input_array, d_sorted_array, num_elements, range, d_hist, d_scan);
+    grid.x = 1;
+    counting_sort_kernel<<<grid, threads, 2 * size>>>(d_input_array, d_sorted_array, d_histogram, d_scan, num_elements, range);
     cudaMemcpy(sorted_array, d_sorted_array, num_elements * sizeof(int), cudaMemcpyDeviceToHost);
 
+    cudaFree(d_input_array);
+    cudaFree(d_sorted_array);
+    cudaFree(d_histogram);
+    cudaFree(d_scan);
     return;
 }
 

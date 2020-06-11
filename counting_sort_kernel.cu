@@ -1,18 +1,16 @@
 /* Write GPU code to perform the step(s) involved in counting sort. 
  Add additional kernels and device functions as needed. */
-
-
-__global__ void counting_sort_kernel(int *input_array, int *sorted_array, int num_elements, int range, int *hist, int *scan)
+__global__ void counting_sort_kernel(int *input_array, int *sorted_array, int *histogram, int *scan, int num_elements, int range)
 {
     extern __shared__ int temp[];
 
     int threadID =  blockIdx.x * blockDim.x + threadIdx.x;  
-    int tid = threadIdx.x;
+    int blockID = threadIdx.x;
 
     int pout = 0, pin = 1;
     int n = range + 1;
     
-    temp[tid] = (tid > 0) ? hist[tid - 1] : 0;
+    temp[blockID] = (blockID > 0) ? histogram[blockID - 1] : 0;
     
     int offset;
     for (offset = 1; offset < n; offset *= 2) {
@@ -20,39 +18,44 @@ __global__ void counting_sort_kernel(int *input_array, int *sorted_array, int nu
         pin = 1 - pout;
         __syncthreads();
     
-        temp[pout * n + tid] = temp[pin * n + tid];
+        temp[pout * n + blockID] = temp[pin * n + blockID];
        
-   	    if (tid >= offset)
-            temp[pout * n + tid] += temp[pin * n + tid - offset];
+   	    if (blockID >= offset)
+            temp[pout * n + blockID] += temp[pin * n + blockID - offset];
     }
        
     __syncthreads(); 
     
-    scan[tid] = temp[pout * n + tid];
+    scan[blockID] = temp[pout * n + blockID];
     
     int j;
     int start_idx = scan[threadID];
-    if (hist[threadID] != 0) 
-      for (j = 0; j < hist[threadID]; j++)
+    if (histogram[threadID] != 0) 
+      for (j = 0; j < histogram[threadID]; j++)
 	     sorted_array[start_idx + j] = threadID;
 
     return;
 }
 
-__global__ void hist_kernel(int *input_array, int num_elements, int *hist)
+__global__ void histogram_kernel_fast(int *input_data, int *histogram, int num_elements, int histogram_size)
 {
-    extern __shared__ int temp[];
+    extern __shared__ unsigned int s[];
     
-    temp[threadIdx.x] = 0;
+    if(threadIdx.x < histogram_size)
+        s[threadIdx.x] = 0;
+    
     __syncthreads();
 
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int offset = blockDim.x * gridDim.x;
-    while (i < num_elements) {
-        atomicAdd(&temp[input_array[i]], 1);
-        i += offset;
+    int offset = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+    
+    while (offset < num_elements) {
+        atomicAdd(&s[input_data[offset]], 1);
+        offset += stride;
     }
-     __syncthreads();
 
-    atomicAdd(&(hist[threadIdx.x]), temp[threadIdx.x]);
+    __syncthreads();
+
+    if(threadIdx.x < histogram_size)
+        atomicAdd(&(histogram[threadIdx.x]), s[threadIdx.x]);
 }
