@@ -161,6 +161,7 @@ void compute_on_device(int *input_array, int *sorted_array, int num_elements, in
     dim3 threads(range + 1);
     dim3 grid(40, 1);
     histogram_kernel_fast<<<grid, threads, size>>>(d_input_array, d_histogram, num_elements, (range + 1));
+    cudaDeviceSynchronize();
     grid.x = 1;
     counting_sort_kernel<<<grid, threads, 2 * size>>>(d_input_array, d_sorted_array, d_histogram, d_scan, num_elements, range);
     gettimeofday(&stop, NULL);
